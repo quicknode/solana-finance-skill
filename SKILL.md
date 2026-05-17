@@ -1,6 +1,6 @@
 ---
 name: solana-anchor-claude-skill
-description: "Use when working on Solana software, including one or more of: Solana client code using TypeScript, Rust libraries that use Solana crates, Anchor programs, including Rust program files, TypeScript tests, and Anchor.toml configuration. Designed to create minimal, reusable code without unnecessary duplication."
+description: "Use when working on Solana software, including one or more of: Solana client code using TypeScript, Rust libraries that use Solana crates, Anchor programs, including Rust program files, Rust tests using LiteSVM, and Anchor.toml configuration. Designed to create minimal, reusable code without unnecessary duplication."
 ---
 
 # Coding Guidelines
@@ -19,7 +19,7 @@ Ship the complete thing. When the user asks for something, the answer is the fin
 
 ## Success Criteria
 
-- Before declaring success, declaring that work is complete, or celebrating, run `npm test`. If the tests fail, there is more work to do. Don't stop until `npm test` passes on the code you have made. 
+- Before declaring success, declaring that work is complete, or celebrating, run `cargo test`. If the tests fail, there is more work to do. Don't stop until `cargo test` passes on the code you have made.
 - Do not write placeholder tests. Placeholder tests don't count as tests, placeholder tests passing does not achieve your task.
   - Tests that just do `assert.ok(true)` or similar are placeholder tests and do not count as tests
   - Tests that do not call the program's instruction handlers are placeholder tests and do not count as tests
@@ -68,7 +68,7 @@ Every project must have a `README.md` file in the project root that includes:
 
 - **Purpose**: Why the project exists and what problem it solves
 - **Major Concepts**: Key architectural concepts, important PDAs, state structures, and program logic
-- **Testing**: How to run the tests (e.g., `npm test`)
+- **Testing**: How to run the tests (e.g., `cargo test`)
 - **Setup**: Any prerequisites or setup steps needed to work with the project
 - **Usage**: Basic usage examples or deployment instructions if applicable
 
@@ -163,7 +163,7 @@ const FINALIZE_EVENT_DISCRIMINATOR = getEventDiscriminator(
 
 ## TypeScript Guidelines
 
-These guidelines apply to TypeScript unit tests, browser code, and any other places where TypeScript is used in the project.
+These guidelines apply to browser code, scripts, offchain client code, and any other places where TypeScript is used in the project. Anchor program tests are Rust + LiteSVM — see the **Testing (Rust + LiteSVM)** section under the Rust guidelines.
 
 ### General TypeScript
 
@@ -211,20 +211,6 @@ const signature = getBase58Decoder().decode(signatureBytes);
 ```
 
 Yes, `bs58` and `@solana/codecs` packages have different concepts of 'encode' and 'decode'.
-
-### Unit Tests
-
-- Create unit tests in TS in the `tests` directory
-- Use the Node.js inbuilt test and assertion libraries (then start the tests using `tsx` instead of `ts-mocha`)
-
-**Unit testing imports:**
-
-```typescript
-import { before, describe, test } from "node:test";
-import assert from "node:assert";
-```
-
-- Use `test` rather than `it`
 
 ### Thrown object handling
 
@@ -372,6 +358,195 @@ pub struct InitializeProfile<'info> {
 ### System Functions
 
 - When you get the time via Clock, use `Clock::get()?;` rather than `anchor_lang::solana_program::clock`
+
+### Testing (Rust + LiteSVM)
+
+Anchor 1.0+ ships Rust + LiteSVM tests by default — `anchor init` now scaffolds a Rust integration test under `programs/<name>/tests/`, and `Anchor.toml` sets `test = "cargo test"`. Use this as the sole test pattern for Anchor programs. Do not write TypeScript tests for Anchor programs.
+
+#### How to initialise a new project
+
+Always initialise new Anchor projects with both flags pinned explicitly:
+
+```sh
+anchor init <name> --package-manager npm --test-template litesvm
+```
+
+- `--package-manager npm` — `anchor init`'s default is `yarn`, which this skill bans. Pin npm at init time so you don't have to fix `Anchor.toml` afterwards.
+- `--test-template litesvm` — currently the default in `anchor-cli`, but pin it explicitly so the project doesn't break if the default changes. The other templates (`mocha`, `jest`, `rust`, `mollusk`) are not used for new Anchor programs in this skill.
+
+The `--template` flag defaults to `multiple` (multi-file program layout with `instructions/`, `state.rs`, `error.rs`); keep that default. `--template single` is a single `lib.rs` and Anchor itself flags it as "not recommended for production".
+
+#### What `anchor init` gives you
+
+A fresh `anchor init` produces these test-related defaults:
+
+`Anchor.toml`:
+
+```toml
+[toolchain]
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[scripts]
+test = "cargo test"
+
+[hooks]
+```
+
+`programs/<name>/Cargo.toml` `[dev-dependencies]`:
+
+```toml
+[dev-dependencies]
+litesvm = "0.10.0"
+solana-message = "3.0.1"
+solana-transaction = "3.0.2"
+solana-signer = "3.0.0"
+solana-keypair = "3.0.1"
+```
+
+`programs/<name>/tests/test_initialize.rs`:
+
+```rust
+use {
+    anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    litesvm::LiteSVM,
+    solana_message::{Message, VersionedMessage},
+    solana_signer::Signer,
+    solana_keypair::Keypair,
+    solana_transaction::versioned::VersionedTransaction,
+};
+
+#[test]
+fn test_initialize() {
+    let program_id = anchor_scaffold_probe::id();
+    let payer = Keypair::new();
+    let mut svm = LiteSVM::new();
+    let bytes = include_bytes!("../../../target/deploy/anchor_scaffold_probe.so");
+    svm.add_program(program_id, bytes).unwrap();
+    svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+
+    let instruction = Instruction::new_with_bytes(
+        program_id,
+        &anchor_scaffold_probe::instruction::Initialize {}.data(),
+        anchor_scaffold_probe::accounts::Initialize {}.to_account_metas(None),
+    );
+
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[instruction], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer]).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(res.is_ok());
+}
+```
+
+Before the program binary exists, run `anchor build` so `target/deploy/<name>.so` is on disk; the test loads it via `include_bytes!`.
+
+#### Two scaffold fixes to apply immediately after `anchor init`
+
+`anchor init`'s defaults conflict with this skill's rules. Fix them straight away:
+
+1. **Set `package_manager = "npm"` in `Anchor.toml`** — `anchor init` defaults to yarn, but yarn is banned in this skill. If you used `--package-manager npm` at init time you can skip this step.
+
+   ```toml
+   [toolchain]
+   package_manager = "npm"
+   ```
+
+2. **Delete `ts-mocha`, `mocha`, `chai` (and their `@types`) from `package.json`** — `--package-manager npm` does not remove the JS test dev-dependencies; you still need this step. The default JS test scaffold is stale. Anchor program tests are Rust + LiteSVM, not Mocha. If you keep a `package.json` at all (for offchain client code or scripts), it should not pull in Mocha-era dependencies.
+
+#### Minimal bare-bones test
+
+The `anchor init` scaffold above is already the minimal pattern — `litesvm` plus the `solana-*` primitives, no extra dependencies. Use this when you want zero indirection and complete control over the transaction. New tests can follow the same shape: build an `Instruction`, wrap in a `Message` with the latest blockhash, sign as a `VersionedTransaction`, and call `svm.send_transaction(tx)`.
+
+#### Optional ergonomic helpers via solana-kite
+
+[`solana-kite`](https://crates.io/crates/solana-kite) is an optional thin layer on top of `litesvm` that removes most of the manual transaction wiring. Used in the wild by [`quiknode-labs/solana-program-examples/basics/counter/anchor`](https://github.com/quiknode-labs/solana-program-examples/tree/main/basics/counter/anchor).
+
+Add to `[dev-dependencies]`:
+
+```toml
+[dev-dependencies]
+litesvm = "0.10.0"
+solana-kite = "0.3.0"
+borsh = "1.6.1"
+```
+
+The same test, rewritten with kite:
+
+```rust
+use {
+    anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    litesvm::LiteSVM,
+    solana_kite::{create_wallet, send_transaction_from_instructions},
+};
+
+#[test]
+fn test_initialize() {
+    let program_id = anchor_scaffold_probe::id();
+    let mut svm = LiteSVM::new();
+    let bytes = include_bytes!("../../../target/deploy/anchor_scaffold_probe.so");
+    svm.add_program(program_id, bytes).unwrap();
+
+    let payer = create_wallet(&mut svm, 1_000_000_000).unwrap();
+
+    let instruction = Instruction::new_with_bytes(
+        program_id,
+        &anchor_scaffold_probe::instruction::Initialize {}.data(),
+        anchor_scaffold_probe::accounts::Initialize {}.to_account_metas(None),
+    );
+
+    send_transaction_from_instructions(&mut svm, &[instruction], &payer, &[&payer]).unwrap();
+}
+```
+
+`create_wallet` replaces the `Keypair::new()` + `svm.airdrop(...)` pair, and `send_transaction_from_instructions` replaces the `Message` / `VersionedMessage` / `VersionedTransaction` construction. Bare `litesvm` is still the baseline — reach for kite when you have repeated boilerplate worth removing.
+
+#### Account deserialisation
+
+Anchor account data is `[8-byte discriminator][borsh-serialised struct]`. To read state from a LiteSVM test, fetch the account, skip the first 8 bytes, and `borsh`-decode the rest. Define a mirror struct (or import the program's own) that derives `BorshDeserialize`.
+
+```rust
+use borsh::BorshDeserialize;
+
+#[derive(BorshDeserialize)]
+struct CounterAccount {
+    pub count: u64,
+}
+
+let account = svm.get_account(&counter_pda).unwrap();
+let counter = CounterAccount::try_from_slice(&account.data[8..]).unwrap();
+assert_eq!(counter.count, 1);
+```
+
+`8` here is the Anchor account discriminator length, not a magic number — it is fixed by Anchor's account layout.
+
+#### Re-expiring blockhash between repeated identical transactions
+
+LiteSVM, like a real validator, will reject a second transaction with the same blockhash + signer + message because the signature is identical to one it has already processed. If a test sends the *same* instruction twice (for example, calling `increment` in a loop), call `svm.expire_blockhash()` between sends so the next transaction picks up a fresh blockhash and is treated as new:
+
+```rust
+send_transaction_from_instructions(&mut svm, &[increment.clone()], &payer, &[&payer]).unwrap();
+svm.expire_blockhash();
+send_transaction_from_instructions(&mut svm, &[increment], &payer, &[&payer]).unwrap();
+```
+
+This is only needed when the message bytes would otherwise be byte-identical. Different instructions, different accounts, or different signers do not need it.
+
+#### Do not use
+
+- `solana-test-validator` — slow, stateful, replaced by LiteSVM for tests.
+- `anchor test --validator legacy` — same reason; the default `anchor test` runs `cargo test` against LiteSVM.
+- `anchor.setProvider`, `anchor.AnchorProvider.env()` — TS Anchor client wiring, no longer used for tests.
+- `program.methods.X().rpc()`, `program.methods.X().sendAndConfirm()` — the TS `@coral-xyz/anchor` client; do not use it for tests.
+- `ts-mocha`, `mocha`, `chai` — the stale `anchor init` JS test scaffold.
+- `tsx`-based `node:test` for Anchor program tests — fine for offchain scripts, not for testing programs.
+- `@solana/web3.js` v1 — legacy in any context.
+- `@coral-xyz/anchor` — Anchor's old TS client; not used in this test pattern.
+- `kit-plugin-litesvm` (the TypeScript LiteSVM plugin) — superseded by using the `litesvm` Rust crate directly.
 
 ## Git commits
 
