@@ -163,7 +163,7 @@ const FINALIZE_EVENT_DISCRIMINATOR = getEventDiscriminator(
 
 ## TypeScript Guidelines
 
-These guidelines apply to browser code, scripts, offchain client code, and any other places where TypeScript is used in the project. Anchor program tests are Rust + LiteSVM — see the **Testing (Rust + LiteSVM)** section under the Rust guidelines.
+These guidelines apply to browser code, scripts, offchain client code, and any other places where TypeScript is used in the project. Anchor programs (since 1.0.0) use Rust + LiteSVM instead of TypeScript — see the **Testing (Rust + LiteSVM)** section under the Rust guidelines.
 
 ### General TypeScript
 
@@ -456,7 +456,7 @@ Before the program binary exists, run `anchor build` so `target/deploy/<name>.so
    package_manager = "npm"
    ```
 
-2. **Delete `ts-mocha`, `mocha`, `chai` (and their `@types`) from `package.json`** — `--package-manager npm` does not remove the JS test dev-dependencies; you still need this step. The default JS test scaffold is stale. Anchor program tests are Rust + LiteSVM, not Mocha. If you keep a `package.json` at all (for offchain client code or scripts), it should not pull in Mocha-era dependencies.
+2. **Delete `ts-mocha`, `mocha`, `chai` (and their `@types`) from `package.json`** — `--package-manager npm` does not remove the JS test dev-dependencies; you still need this step. The default JS test scaffold is stale. Anchor programs (since 1.0.0) use Rust + LiteSVM instead of TypeScript, not Mocha. If you keep a `package.json` at all (for offchain client code or scripts), it should not pull in Mocha-era dependencies.
 
 #### Minimal bare-bones test
 
