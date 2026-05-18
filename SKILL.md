@@ -19,7 +19,7 @@ Ship the complete thing. When the user asks for something, the answer is the fin
 
 ## Success Criteria
 
-- Before declaring success, declaring that work is complete, or celebrating, run `cargo test`. If the tests fail, there is more work to do. Don't stop until `cargo test` passes on the code you have made.
+- Before declaring success, declaring that work is complete, or celebrating, run `anchor test`. If the tests fail, there is more work to do. Don't stop until `anchor test` passes on the code you have made.
 - Do not write placeholder tests. Placeholder tests don't count as tests, placeholder tests passing does not achieve your task.
   - Tests that just do `assert.ok(true)` or similar are placeholder tests and do not count as tests
   - Tests that do not call the program's instruction handlers are placeholder tests and do not count as tests
@@ -68,7 +68,7 @@ Every project must have a `README.md` file in the project root that includes:
 
 - **Purpose**: Why the project exists and what problem it solves
 - **Major Concepts**: Key architectural concepts, important PDAs, state structures, and program logic
-- **Testing**: How to run the tests (e.g., `cargo test`)
+- **Testing**: How to run the tests (e.g., `anchor test`)
 - **Setup**: Any prerequisites or setup steps needed to work with the project
 - **Usage**: Basic usage examples or deployment instructions if applicable
 
