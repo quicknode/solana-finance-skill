@@ -1,15 +1,15 @@
-# Solana Anchor Claude Skill
+# Solana Claude Skill
 
-A Claude Code skill for creating and editing Solana projects, including Rust/Anchor and TypeScript, with a focus on:
+A Claude Code skill for creating and editing Solana projects, including Rust/Anchor/Quasar and TypeScript, with a focus on:
 
 - Maintainability
 - Readability
 - Minimal code
-- Financial maths
+- Financial math
 - 2026 best practices
 
 > [!TIP]
-> This skill has the **most stars of any Solana Claude skill** not produced by the Solana Foundation (which inherently get more distribution) and is made by someone working in the software industry for more than 25 years, based on code used by some of the largest programs on Solana. If you find it useful, please add a GitHub star above! 🙏 
+> This skill has the **most stars of any ecosystem Solana Claude skill** and is made by someone working in the software industry for more than 25 years, based on code used by some of the largest programs on Solana. If you find it useful, please add a GitHub star above! 🙏 
 
 ## Sponsor shout out
 
@@ -22,15 +22,15 @@ Claude Code supports "skills" - reusable instruction sets that Claude automatica
 ## Installation
 
 ```bash
-npx skills add https://github.com/quicknode/solana-anchor-claude-skill
+npx skills add https://github.com/quicknode/solana-claude-skill
 ```
 
 This automatically installs the skill to your Claude Code skills directory (`~/.claude/skills/`).
 
 ## Usage
 
-Once installed, the skill automatically applies when Claude Code works on Solana/Anchor projects. You can also manually invoke it with:
+Once installed, the skill automatically applies when Claude Code works on Solana/Anchor/Quasar projects. You can also manually invoke it with:
 
 ```
-/solana-anchor-claude-skill
+/solana-claude-skill
 ```

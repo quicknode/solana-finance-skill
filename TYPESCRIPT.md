@@ -25,6 +25,7 @@ Favor `async`/`await` and `try/catch` over `.then()` or `.catch()` or using call
 ## Solana-Specific TypeScript
 
 - Don't make new `@solana/web3.js` version 1 code. Do not make new code using `@coral-xyz/anchor` package. Don't replace Solana Kit with web3.js version 1 code. web3.js version 1 is legacy and should be eventually removed. Solana Kit used to be called web3.js version 2. Use Solana Kit, preferably via Solana Kite.
+- **Anchor 1.0 TypeScript package is `@anchor-lang/core`**, not `@coral-xyz/anchor`. New TypeScript code that interacts with Anchor programs imports from `@anchor-lang/core`. The Rust crate is still `anchor-lang`.
 - Use Kite's `connection.getPDAAndBump()` to turn seeds into PDAs and bumps
 - There is no need to use offsets that you set to decode Solana account data - either download an npm package for the program like `@solana-program/token` for the token program or make one using Codama.
 - In Solana Kit, you make instructions by making TS clients from IDLs using Codama. You can easily make Codama clients for installed IDLs using:
@@ -48,6 +49,52 @@ const signature = getBase58Decoder().decode(signatureBytes);
 ```
 
 Yes, `bs58` and `@solana/codecs` packages have different concepts of 'encode' and 'decode'.
+
+## Compute Budget and Priority Fees
+
+Production transactions need a compute budget instruction and usually a priority fee. Add both at the start of your instruction array using `@solana-program/compute-budget`:
+
+```typescript
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+
+const instructions = [
+  getSetComputeUnitLimitInstruction({ units: 200_000 }),
+  getSetComputeUnitPriceInstruction({ microLamports: 1_000 }),
+  // ...your program instructions
+];
+```
+
+- Set the compute unit limit to a value measured from simulation — don't guess. Over-budgeting wastes fee payer SOL; under-budgeting causes `ComputationalBudgetExceeded`.
+- Set the priority fee (`microLamports`) based on current network conditions. For production code, fetch the recent prioritization fees via `getRecentPrioritizationFees` and use a percentile of recent fees for the accounts your transaction touches.
+- Both instructions must come **before** your program instructions in the array.
+
+## Parsing Transaction Errors
+
+When a transaction fails, Solana returns logs that contain the Anchor error code. Parse them to surface a useful error rather than a raw hex string.
+
+```typescript
+import { isSolanaError, SOLANA_ERROR__TRANSACTION_ERROR__INSTRUCTION_ERROR } from "@solana/errors";
+
+try {
+  await sendAndConfirmTransaction(transaction);
+} catch (thrownObject) {
+  const error = ensureError(thrownObject);
+  if (isSolanaError(error, SOLANA_ERROR__TRANSACTION_ERROR__INSTRUCTION_ERROR)) {
+    // error.context.logs contains the program logs with the Anchor error code
+    const logs = error.context.logs ?? [];
+    const anchorError = logs.find((log) => log.includes("AnchorError"));
+    console.error("Anchor error:", anchorError ?? error.message);
+  }
+  throw error;
+}
+```
+
+- Always check `error.context.logs` first — the Anchor error message and code are in the logs, not the top-level error object.
+- Anchor error codes are documented at `https://raw.githubusercontent.com/coral-xyz/anchor/master/lang/src/error.rs` (linked in SKILL.md Documentation Sources).
+- For Kite-based code, `connection.sendTransactionFromInstructions` surfaces the same logs on failure via the thrown error.
 
 ## Unit Tests
 

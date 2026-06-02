@@ -1,6 +1,6 @@
 ---
-name: solana-anchor-claude-skill
-description: "Use when working on Solana software, including one or more of: Solana client code using TypeScript, Rust libraries that use Solana crates, Anchor programs, Quasar programs, LiteSVM tests, including Rust program files, TypeScript tests, and Anchor.toml configuration. Designed to create minimal, reusable code without unnecessary duplication."
+name: solana-claude-skill
+description: "Use when working on Solana software, including one or more of: Solana client code using TypeScript, Rust libraries that use Solana crates, Anchor programs, Quasar programs, LiteSVM tests, including Rust program files, TypeScript tests, and Anchor.toml or Quasar.toml configuration. Designed to create minimal, reusable code without unnecessary duplication."
 ---
 
 # Coding Guidelines
@@ -57,6 +57,7 @@ Use these official documentation sources:
 - **Anchor**: https://www.anchor-lang.com/docs
 - **LiteSVM**: https://www.anchor-lang.com/docs/testing/litesvm
 - **Anchor Error Codes**: https://raw.githubusercontent.com/coral-xyz/anchor/master/lang/src/error.rs
+- **Quasar**: https://quasar-lang.com/docs
 - **Solana Kite**: https://solanakite.org
 - **Solana Kit**: https://solanakit.com
 - **Agave (Solana CLI)**: https://docs.anza.xyz/ (Anza makes the Solana CLI and Agave).
@@ -116,6 +117,16 @@ Every project must have a `README.md` file in the project root that includes:
 - **Usage**: Basic usage examples or deployment instructions if applicable
 
 Keep the README focused and practical. Avoid generic boilerplate - write documentation that would actually help someone understand and work with this specific project.
+
+### Documentation style
+
+- **No numbered headings.** Headings are words only — no `## 1. Overview` or `### 3.6 Liquidation`. Numbered headings break when a section is inserted or removed.
+- **No preview paragraphs.** Don't open a README or section with "the sections below cover X, Y, and Z" — the headings already do that.
+- **Integrate per-instruction reference into lifecycle prose.** Walk through the program's flow and inline each handler's mechanics (signers, accounts, token movements, errors) at the point it's first called. Don't keep a separate flat "Instruction Reference" section.
+- **Bold canonical terms on first use**, plain everywhere after — like a textbook.
+- **No ASCII art, no Mermaid diagrams, no markdown tables.** Use headings, nested bullet lists, or prose. Tables don't render well on chat surfaces.
+- **No em-dashes.** Use a regular dash or rewrite the sentence. Em-dashes are an LLM-output tell. This applies to READMEs, code comments, commit messages, and doc strings.
+- **Don't say "worked example" or "worked scenario".** Just "Example", "Scenario", or "Walkthrough".
 
 ## Writing About Financial Software
 
