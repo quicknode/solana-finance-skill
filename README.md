@@ -1,16 +1,5 @@
 # Solana Claude Skill
 
-<a class="github-button" 
-   href="https://github.com/quicknode/solana-claude-skill" 
-   data-icon="octicon-star" 
-   data-size="large" 
-   data-show-count="true" 
-   aria-label="Star quicknode/solana-claude-skill on GitHub">
-   Star
-</a>
-
-<script async defer src="https://buttons.github.io/buttons.js"></script>
-
 A Claude Code skill for creating and editing Solana projects, including Rust/Anchor/Quasar and TypeScript, with a focus on:
 
 - Maintainability
