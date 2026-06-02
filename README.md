@@ -1,5 +1,16 @@
 # Solana Claude Skill
 
+<a class="github-button" 
+   href="https://github.com/quicknode/solana-claude-skill" 
+   data-icon="octicon-star" 
+   data-size="large" 
+   data-show-count="true" 
+   aria-label="Star quicknode/solana-claude-skill on GitHub">
+   Star
+</a>
+
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+
 A Claude Code skill for creating and editing Solana projects, including Rust/Anchor/Quasar and TypeScript, with a focus on:
 
 - Maintainability
@@ -8,8 +19,10 @@ A Claude Code skill for creating and editing Solana projects, including Rust/Anc
 - Financial math
 - 2026 best practices
 
+This skill has the **most stars of any ecosystem Solana Claude skill** and is made by someone working in the software industry for more than 25 years, based on production-code used by some of the largest programs on Solana. 
+
 > [!TIP]
-> This skill has the **most stars of any ecosystem Solana Claude skill** and is made by someone working in the software industry for more than 25 years, based on code used by some of the largest programs on Solana. If you find it useful, please add a GitHub star above! 🙏 
+> If you find this skill useful, please add a GitHub star above! 🙏 
 
 ## Sponsor shout out
 
