@@ -18,7 +18,9 @@ If a task touches more than one, read each.
 
 ## Account Constraints
 
-- Use a newline after each key in the account constraints struct, so the macro and the matching key/value have some space from other macros and their matching key/value
+- Use a newline after each key in the account constraints struct, so the macro and the matching key/value have some space from other macros and their matching key/value.
+
+- Account constraints must not be given the same name as functions, because structs cannot do anything - `PlaceBet` would be a misleading and silly name for a struct because a struct cannot place a bet. If this struct is Account Constraints for an Anchor instruction handler called `place_bet` (which is a bad default from Anchor), name the struct `PlaceBetAccountConstraints` or similar.
 
 ## Error Handling
 

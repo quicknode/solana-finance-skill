@@ -12,7 +12,7 @@ Apply these rules to ensure code quality, maintainability, and adherence to proj
 Don't write things that aren't currently true — anywhere. Chat, code comments, variable names, PR titles, READMEs, commit messages.
 
 - Documentation and comments that do not match the code are considered untrue.
-- Variable names that do not match the purpose of the variable are considered untrue.
+- Variable names that do not match the purpose of the variable are considered untrue. For example, a struct called `InitializeMarket` is not true because a struct cannot 'initialize a market' - structs do not do things, only functions can do things.
 - Temporary workarounds that aren't labelled as such are lying through omission - there is an issue you aren't telling the next programmer about. Mark them with a `TODO` comment with a link to a git issue (if it exists) and telling the next programmer when they can delete the workaround.
 - If unsure of something, say so. Bluffing is lying.
 - **Ambiguity is a soft lie:** if a phrase could be read two ways and only one is true, it's misleading. Disambiguate before sending — pick the term that says exactly what's meant, name the antecedent of every "it"/"this"/"that".
@@ -216,7 +216,7 @@ const foo = getFoo();
 
 - Arrays should be plurals (`shoes`), items within arrays should be the singular (`shoes.forEach((shoe) => {...})`)
 - Functions should be verby, like `calculateFoo` or `getBar`
-- Avoid abbreviations, use full words (e.g., use `context` rather than `ctx`). Never use `e` for something thrown, use `thrownObject`, never use `v` when you mean `value`. There is almost no case where a single character variable is a good idea outside maths (eg `p` and `q` for cryptography).
+- Avoid abbreviations, use full words (e.g., use `context` rather than `ctx`). Never use `e` for something thrown, use `thrownObject`, never use `v` when you mean `value`. There is almost no case where a single character variable is a good idea outside math (eg `p` and `q` for cryptography).
 - Name a transaction some variant of `transaction`. Name instructions some variant of `instruction`. Name signatures some variant of `signature`. Do not confuse them - eg if the type looks like an instruction, you should not call it a 'transaction' because that is deceptive.
 
 You can still add comments for additional context, just be careful to avoid comments that are explaining things that would be better conveyed by good variable naming.
@@ -258,6 +258,8 @@ If a task touches more than one, read each.
 ## Git commits
 
 Do not add "Co-Authored-By: Claude" or similar attribution when creating git commits.
+
+Use the Linux/Git style `scope: description` for commit titles. [Do not use 'Conventional commits'](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/).
 
 ## Acknowledgment
 
