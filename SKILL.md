@@ -86,6 +86,8 @@ Use these official documentation sources:
     - [US Government usage](https://www.sec.gov/files/rules/interp/2026/33-11412.pdf)
     - [Cat (catmcgee) will make fun of you if you write 'on-chain'](https://x.com/catmcgee/status/2028153588715761825)
 
+- Token amount units: use 'minor units' for the raw integer amounts programs operate on (lamports, USDC's 6-decimal units) and 'major units' for human-scale display amounts (1 SOL, 1 USDC). Do not say 'base units'.
+
 - Some tools in Solana unfortunately use the same word 'instructions' for both the input and the functions. To avoid confusion, use 'instruction handlers' for the functions that handle instructions, and 'instructions' for the input to those functions.
 
 ## Do not use
