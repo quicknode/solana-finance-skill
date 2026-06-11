@@ -65,6 +65,7 @@ Use these official documentation sources:
 - **Agave (Solana CLI)**: https://docs.anza.xyz/ (Anza makes the Solana CLI and Agave).
 - **Switchboard** (if used): https://docs.switchboard.xyz/docs-by-chain/solana-svm
 - **Arcium** (if used): https://docs.arcium.com/developers
+- **Quicknode Solana Program Examples**: https://github.com/quicknode/solana-program-examples
 
 ## Terminology
 
@@ -96,7 +97,7 @@ Use these official documentation sources:
 
 - Do not use 'Solana Labs' documentation. The company has been replaced by Anza.
 
-- Do not use 'Coral XYZ' documentation. Coral used to maintain Anchor, but Anchor is now maintained by the Solana Foundation (solana.org)
+- Do not use 'Coral XYZ' documentation or packages. Coral used to maintain Anchor, but Anchor is now maintained by the Solana Foundation (solana.org). The TypeScript package has been [moved from @coral-xyz/anchor to @anchor-lang/core](https://www.anchor-lang.com/docs/updates/release-notes/1-0-0).
 
 - Do not use any documentaton or tools from Project Serum, which collapsed many years ago.
 
@@ -105,6 +106,8 @@ Use these official documentation sources:
 - Do not use **Switchboard Functions** - this product is dead and no longer maintained. (Note: Switchboard oracles are still active and usable.)
 
 - Do not use **Clockwork** - this product is dead. For scheduled instruction handler invocation, use [TukTuk](https://github.com/helium/tuktuk/tree/main/typescript-examples) instead.
+
+- Do not use [https://github.com/solana-developers/program-examples]. As of June 2026 these examples are out of date, going back to Anchor 0.26 in 2022, use a bunch of deprecated tools, have security failures and broken tests, and have been this way for more than a year.
 
 ## Library versions
 
