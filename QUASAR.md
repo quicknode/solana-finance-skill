@@ -178,6 +178,7 @@ Key differences from LiteSVM:
 - Assert outcomes with `result.assert_success()`, or `assert!(result.is_ok(), "failed: {:?}", result.raw_result)` for a custom message
 - Read post-instruction account state with `result.account(&pubkey)`
 - Check CU consumption with `result.compute_units_consumed` to assert performance budgets
+- Warp the clock with `svm.warp_to_timestamp(...)` to test time-window logic on both sides of every deadline boundary
 - Well-known IDs are re-exported: `quasar_svm::system_program::ID`, `quasar_svm::SPL_TOKEN_PROGRAM_ID`, and sysvar IDs under `quasar_svm::solana_sdk_ids`
 
 Build the program so its `.so` is on disk at `target/deploy/<name>.so` before the `include_bytes!` compiles. The generated client crate under `target/client/rust/` is produced by the same build (per `[clients]` in `Quasar.toml`).

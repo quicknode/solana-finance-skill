@@ -38,6 +38,8 @@ Ship the complete thing. When the user asks for something, the answer is the fin
 ## Success Criteria
 
 - Before declaring success, declaring that work is complete, or celebrating, run the project's actual tests using the correct command for that project (for example: `anchor test` for Anchor workspaces, the project's TypeScript test command for TypeScript clients/tests, or `cargo test` for Rust crates). If the tests fail, there is more work to do. Don't stop until the relevant test command passes on the code you have made.
+- Create all program state through the program's own instruction handlers in tests. Injecting pre-fabricated accounts (hand-built account data passed straight into the SVM) hides missing init instructions and missing constraints - a program can pass every test while being unusable onchain. Pre-fabricated accounts are only acceptable for accounts a foreign program would have created (an oracle's price account, a mainnet-dumped fixture).
+- Tests that use a zero or degenerate value for a parameter (e.g. `duration: 0`) test only the boundary where opposite comparisons coincide. Use nonzero, asymmetric values and test both sides of every boundary.
 - Do not write placeholder tests. Placeholder tests don't count as tests, placeholder tests passing does not achieve your task.
   - Tests that just do `assert.ok(true)` or similar are placeholder tests and do not count as tests
   - Tests that do not call the program's instruction handlers are placeholder tests and do not count as tests
@@ -156,6 +158,8 @@ Remove:
 - Comments that simply repeat what the code is doing, or the name of a variable, and do not add further insight.
 - Repeated code that should be turned into a named function.
 - Unused imports, unused constants, unused files, and comments that no longer apply.
+
+Before deleting "stale" scaffolding, confirm it is actually dead: grep the CI workflows (`.github/workflows/`) and package scripts for references. Test files and package.json scripts that look like leftovers are sometimes exactly what CI runs.
 - Doc-comments whose first line just paraphrases the identifier. `/// Pool authority PDA.` above `pub pool_authority` is noise. Either explain something the name doesn't (seed derivation, mutability rationale, type-choice reason, an invariant the reader can't see from the type) or delete the line.
 
 Don't remove existing comments unless they are no longer useful or accurate.
@@ -256,6 +260,8 @@ The rules above apply to every file in the project. In addition, read the file t
 - **Rust — Quasar** (`.rs` files using `quasar_lang`/`quasar_spl`): see [QUASAR.md](QUASAR.md), plus RUST.md for the shared rules
 
 If a task touches more than one, read each.
+
+For setting up a Solana toolchain in CI or a fresh remote container (Agave, platform-tools behind TLS-intercepting proxies, the Quasar CLI, building Anchor projects without the anchor CLI): see [ENVIRONMENT.md](ENVIRONMENT.md).
 
 ## Git commits
 

@@ -166,7 +166,9 @@ fn test_initialize() {
 }
 ```
 
-Before the program binary exists, run `anchor build` so `target/deploy/<name>.so` is on disk; the test loads it via `include_bytes!`.
+Before the program binary exists, run `anchor build` so `target/deploy/<name>.so` is on disk; the test loads it via `include_bytes!`. Rebuild after every program change: the binary is embedded at test-compile time, so a stale `.so` silently tests old code.
+
+**Tests must live under `programs/<name>/tests/`** (a cargo target of the program crate). A `tests/` directory at the Anchor project root is not part of any cargo package - `cargo test` will report success while compiling and running nothing. If a suite "passes" suspiciously fast, check the test count in the output, not just the exit code.
 
 ### Two scaffold fixes to apply immediately after `anchor init`
 

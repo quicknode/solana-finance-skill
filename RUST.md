@@ -61,6 +61,7 @@ Applies to any code touching money, balances, prices, shares, fees, or token amo
 
 ### Escrows, Vaults, and Escape Hatches
 
+- **Every vault stores who may withdraw, and every withdraw verifies it.** A vault whose PDA signs for any caller is an open drain: if the only signer in the withdraw instruction is the fee payer and the recipient is client-supplied, anyone can withdraw anything. Record the depositor/authority when assets enter, `require!` it (against a `Signer`) when they leave. "The README admits there is no authority" does not make the program acceptable as a reference.
 - **Every escrow needs a cancel/withdraw instruction.** An escrow with no cancel locks abandoned offers forever — funds become unrecoverable when the counterparty disappears. The cancel must be callable by the maker (and only the maker) at any time before the trade settles.
 - **Don't lazily create an account the wrong party would pay rent for.** Common bug: the taker's instruction lazily creates the maker's destination ATA (e.g. via Anchor's `init_if_needed`), so the taker pays the maker's rent. Either require the maker to pre-create their ATA or pass the rent payer explicitly.
 - **Close accounts to whoever paid their rent.** The mirror image of the bullet above: when the taker settles an offer, the offer account and vault rent were paid by the maker, so `close = maker` — not `close = taker`, and never a caller-chosen unchecked account. When closing manually, move *all* lamports; leaving `minimum_balance` behind strands it forever at a PDA nobody can sign for.
@@ -100,6 +101,18 @@ If a handler accepts an offchain signature (ed25519, secp256k1 "sign in with Eth
 - Increment the stored nonce after each successful use, so a signature authorizes exactly one execution.
 - A signature over an arbitrary 32-byte value the client provides authorizes nothing in particular and everything in practice: any old signature can be replayed forever, for any amount, to any destination.
 - The signature check supplements the Solana-side authority check, it does not replace it. Keep the `Signer` + stored-authority comparison too.
+
+## Account Binding
+
+Framework type checks (Anchor `Account<T>`, Quasar `Account<T>`) only verify owner and discriminator. They do NOT link accounts to each other. Every account in a constraint struct must be bound to something:
+
+- State accounts: `seeds` / `address` derivation, or `has_one` from another bound account.
+- Vaults and ATAs: `has_one` from the state account that recorded them, or `associated_token::*` constraints.
+- Per-user records: seeds that include the signer's key, so user A cannot pass user B's record with their own token account.
+- Mints a state account stores (`usdc_mint`, `asset_mint_a`, ...): `has_one` in EVERY instruction that reads balances denominated in them. An unbound mint lets a caller substitute a junk mint whose vault is empty and skew any NAV/share calculation.
+- Stored program addresses (swap router, oracle program): either enforce them where the CPI happens or delete the field. A stored-but-never-checked address is worse than none: readers assume it is enforced.
+
+An account with no constraint and no handler-side check is a finding, not a style issue. When a program ships in multiple frameworks, port the FULL constraint set: a twin variant missing one `has_one` or one authority comparison is a security bug, not a porting shortcut.
 
 ## Config Validation
 
