@@ -91,7 +91,14 @@ The same applies to `PodU32`, `PodI64`, `PodBool`, etc. (and a field may be decl
 
   Anchor's `CpiContext::new(program, accounts).invoke()` does not exist in Quasar.
 
-- **No `close` account constraint.** To close an account, zero its lamports and clear its data manually inside the handler.
+- **Closing accounts uses the `close(dest = ...)` constraint**, mirroring Anchor's `close = ...`:
+
+  ```rust
+  #[account(mut, close(dest = user))]
+  pub thing: Account<Thing>,
+  ```
+
+  The generated epilogue moves the account's lamports to `dest` and clears its data. Do not write "Quasar has no close constraint" — it does.
 
 ## Testing Quasar programs (QuasarSVM)
 
@@ -101,6 +108,9 @@ Add to `[dev-dependencies]` in the program's `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
+# Generated Rust client (see [clients] in Quasar.toml) - gives tests
+# typed *Instruction builders instead of hand-built account metas.
+my-program-client = { path = "target/client/rust/my-program-client" }
 quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm" }
 solana-account = "3.4.0"
 solana-address = { version = "2.2.0", features = ["decode"] }
@@ -113,45 +123,65 @@ At the time this skill was produced (June 2026), Quasar is generally installed f
 The basic test shape:
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use quasar_svm::{ExecutionStatus, QuasarSvm};
-    use solana_account::Account;
-    use solana_pubkey::Pubkey;
+use quasar_svm::{Account, Instruction, Pubkey, QuasarSvm};
+use solana_address::Address;
 
-    fn setup() -> QuasarSvm {
-        let elf = include_bytes!("../target/deploy/my_program.so");
-        QuasarSvm::new()
-            .with_program(&Pubkey::from(crate::ID), elf)
+use my_program_client::InitializeCounterInstruction;
+
+fn setup() -> QuasarSvm {
+    let elf = include_bytes!("../target/deploy/my_program.so");
+    QuasarSvm::new().with_program(&Pubkey::from(crate::ID), elf)
+}
+
+#[test]
+fn test_initialize() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let (counter, _) =
+        Pubkey::find_program_address(&[b"counter", payer.as_ref()], &Pubkey::from(crate::ID));
+
+    let instruction: Instruction = InitializeCounterInstruction {
+        payer: Address::from(payer.to_bytes()),
+        counter: Address::from(counter.to_bytes()),
+        system_program: Address::from(quasar_svm::system_program::ID.to_bytes()),
     }
+    .into();
 
-    #[test]
-    fn test_initialize() {
-        let svm = setup();
-        let payer = Pubkey::new_unique();
+    let result = svm.process_instruction(
+        &instruction,
+        &[
+            // A funded system-owned account for the signer.
+            quasar_svm::token::create_keyed_system_account(&payer, 10_000_000_000),
+            // The not-yet-created PDA: an empty system-owned account.
+            Account {
+                address: counter,
+                lamports: 0,
+                data: vec![],
+                owner: quasar_svm::system_program::ID,
+                executable: false,
+            },
+        ],
+    );
 
-        let result = svm.process_transaction(
-            &[instruction],
-            &[(payer, Account::new(10_000_000_000, 0, &system_program))],
-        );
+    result.assert_success();
 
-        match result.status() {
-            ExecutionStatus::Success => {}
-            ExecutionStatus::Err(e) => panic!("failed: {e}"),
-        }
-    }
+    // Read post-instruction state straight off the result.
+    let counter_account = result.account(&counter).unwrap();
+    assert_eq!(counter_account.data[0], 1); // dense discriminator
 }
 ```
 
 Key differences from LiteSVM:
 
 - Load the program with `QuasarSvm::new().with_program(id, elf)` instead of `svm.add_program(id, bytes)`
-- Pass initial account state as `(Pubkey, Account)` tuples directly to `process_transaction` — no separate airdrop step
-- `result.status()` returns `ExecutionStatus::Success` or `ExecutionStatus::Err`, not a `Result`
+- There is no airdrop or blockhash plumbing: every account the instruction touches is passed explicitly to `process_instruction` as a `quasar_svm::Account`, which embeds its own `address` field. `quasar_svm::token::create_keyed_system_account(&address, lamports)` builds a funded signer account.
+- Assert outcomes with `result.assert_success()`, or `assert!(result.is_ok(), "failed: {:?}", result.raw_result)` for a custom message
+- Read post-instruction account state with `result.account(&pubkey)`
 - Check CU consumption with `result.compute_units_consumed` to assert performance budgets
-- Chain multi-step tests by feeding `resulting_accounts` from one call into the next
+- Warp the clock with `svm.warp_to_timestamp(...)` to test time-window logic on both sides of every deadline boundary
+- Well-known IDs are re-exported: `quasar_svm::system_program::ID`, `quasar_svm::SPL_TOKEN_PROGRAM_ID`, and sysvar IDs under `quasar_svm::solana_sdk_ids`
 
-Build the program so its `.so` is on disk at `target/deploy/<name>.so` before the `include_bytes!` compiles.
+Build the program so its `.so` is on disk at `target/deploy/<name>.so` before the `include_bytes!` compiles. The generated client crate under `target/client/rust/` is produced by the same build (per `[clients]` in `Quasar.toml`).
 
 ## Fight for Truth about Quasar
 

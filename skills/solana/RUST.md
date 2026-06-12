@@ -18,31 +18,38 @@ If a task touches more than one, read each.
 
 ## Account Constraints
 
-- Use a newline after each key in the account constraints struct, so the macro and the matching key/value have some space from other macros and their matching key/value
+- Use a newline after each key in the account constraints struct, so the macro and the matching key/value have some space from other macros and their matching key/value.
+
+- Account constraints must not be given the same name as functions, because structs cannot do anything - `PlaceBet` would be a misleading and silly name for a struct because a struct cannot place a bet. If this struct is Account Constraints for an Anchor instruction handler called `place_bet` (which is a bad default from Anchor), name the struct `PlaceBetAccountConstraints` or similar.
 
 ## Error Handling
 
 - Return useful error messages
 - Write code to handle common errors like insufficient funds, bad values for parameters, and other obvious situations
+- **Bounds-check client-supplied lengths and indices before slicing.** `split_at`, `copy_from_slice`, and indexing panic on out-of-range input; an attacker-controlled length must be `require!`d against the actual slice length first so the program returns a clean error instead of aborting.
+- **Use a named error enum, not `ProgramError::Custom(4)`.** Bare numeric custom errors are magic numbers; the client can't tell what failed.
+- **Never accept a parameter and ignore it.** A handler that takes `decimals: u8` and then hardcodes `9` silently gives the caller something different from what they asked for. Either use the parameter or remove it from the signature.
 - All arithmetic in onchain code is `checked_*` — never raw `+ - * /`. Solana's BPF doesn't trap on overflow in release builds; silent wraps are how hacks happen. `checked_*` returns `Option`; force the error with `.ok_or(MyError::MathOverflow)?`. Reserve `saturating_*` for cosmetic/UX display values, never for balances.
 
 ## Onchain Financial Math
 
 Applies to any code touching money, balances, prices, shares, fees, or token amounts. These rules are non-negotiable.
 
-- **Integers only — no floats, no fixed-point libraries.** Floats are non-deterministic across platforms (different validators could disagree on state). `fixed::types::I64F64`, `rust_decimal`, `bnum`-fixed-point and similar are also out — they add audit surface, burn compute, and hide the rounding/precision decisions you should be making explicitly. Token amounts are integers (base units), prices are ratios of integers. The system is discrete. Production Solana AMMs (Orca, Raydium, Meteora, Saber, Phoenix) all use raw `u128`. If you find yourself reaching for a decimal type, stop — the right tool is `u128` with discipline.
+- **Integers only — no floats, no fixed-point libraries.** Floats are non-deterministic across platforms (different validators could disagree on state). `fixed::types::I64F64`, `rust_decimal`, `bnum`-fixed-point and similar are also out — they add audit surface, burn compute, and hide the rounding/precision decisions you should be making explicitly. Token amounts are integers (minor units), prices are ratios of integers. The system is discrete. Production Solana AMMs (Orca, Raydium, Meteora, Saber, Phoenix) all use raw `u128`. If you find yourself reaching for a decimal type, stop — the right tool is `u128` with discipline.
 - **Multiply before you divide.** `a * b / c`, not `(a / c) * b`. Division truncates; dividing first throws away precision permanently.
 - **Use `u128` (or wider) for intermediate products.** `u64 * u64` overflows at ~1.8e19. Cast both operands to `u128` _before_ multiplying, then narrow the final result with `try_into().map_err(|_| MyError::MathOverflow)?`.
 - **For price × quantity × rate, u128 may not be enough.** `price (u64) × quantity (u64) × rate (u64)` can reach ~5.4e58, which overflows u128 (~3.4e38). If your hot path multiplies three u64-scale values together, either bound your inputs tightly and document the proof, or hand-roll a U256 type (~200 lines of Newton-based arithmetic, as Uniswap V2 in Solidity and Saber in Rust do). Don't reach for a crate just for this.
-- **Round in the protocol's favour, never the user's.** Value-to-share and share-to-value conversions: user gets floor, protocol gets ceil. Otherwise you leak 1 base unit per transaction forever, and attackers will industrialise it.
+- **Round in the protocol's favour, never the user's.** Value-to-share and share-to-value conversions: user gets floor, protocol gets ceil. Otherwise you leak 1 minor unit per transaction forever, and attackers will industrialise it.
 - **Validate ranges before doing the math.** Reject zero inputs, `amount > balance`, ratios that would mint zero shares. Cheap, prevents the inflation/donation attack on empty pools and other whole bug classes.
 - **Check invariants after the math, not just before.** "K must not decrease" on a swap, "total LP shares == sum of holdings", "reserves >= owed fees". Compute, then `require!()` the invariant.
 - **Assert token conservation on every instruction that moves funds.** Before returning from any instruction that transfers tokens between vaults or accounts, verify that total value in == total value out. Sum all debits and credits and `require!` they balance. A one-line conservation check catches an entire class of drain bugs before they reach mainnet.
-- **Decimals are tracked, not assumed.** USDC=6, SOL=9, SPL tokens vary. Use `transfer_checked` (carries decimals in the CPI). Reserves hold raw base units; the UI does cosmetic conversion. Never hard-code `* 10^9`.
+- **Decimals are tracked, not assumed.** USDC=6, SOL=9, SPL tokens vary. Use `transfer_checked` (carries decimals in the CPI). Reserves hold raw minor units; the UI does cosmetic conversion. Never hard-code `* 10^9`.
 - **Oracle/price freshness is part of the math.** Check `last_updated_slot` and reject if older than N slots. A stale price means the calculation is wrong.
 - **Checks-effects-interactions.** Update state before the token transfer CPI, not after.
 - **Treat client-supplied values as adversarial.** If a handler takes `(amount_a, amount_b)`, verify each against onchain state, not against each other.
-- **Test the branch the bug lives in.** Standard AMM/lending bugs sit in the _non-empty pool_, _post-swap_, _post-fee_, _rounding-edge_ branches. The happy path almost always works. Write the test that exercises the branch where the bug actually lives.
+- **Test the branch the bug lives in.** Standard AMM/lending bugs sit in the _non-empty pool_, _post-swap_, _post-fee_, _rounding-edge_ branches. The happy path almost always works. Write the test that exercises the branch where the bug actually lives. In particular, test *both directions* of any symmetric flow: a swap suite that only ever trades A→B will never catch a wrong-variable bug in the B→A branch.
+- **One major unit is `10u64.pow(decimals)` minor units.** `1u64.pow(decimals)` is always 1, and `n.pow(decimals)` is n^decimals, not n major units — both are real shipped bugs. n major units is `n * 10u64.pow(decimals)`, with `checked_mul`.
+- **Time windows: write the comparison in words first, then test with a nonzero duration.** "Contributions are allowed while `now < start + duration`" — code exactly that sentence. Inverted deadline comparisons (`duration <= elapsed` where `elapsed < duration` was meant) ship to mainnet because the tests use `duration: 0`, where both directions degenerate to equality. Every deadline needs a test that warps the clock past the boundary and one that stays inside it.
 - **LP shares use different formulas for first deposit vs subsequent.** First deposit: shares = `sqrt(amount_a * amount_b)` (geometric mean bootstraps the pool). Subsequent deposits: shares = `min(amount_a * supply / reserve_a, amount_b * supply / reserve_b)` (proportional to share-of-pool). Using the geometric mean for every deposit is a real, repeated bug — test both branches separately.
 - **For integer sqrt, hand-code Newton's method on `u128`** (~15 lines, as Uniswap V2 in Solidity / Saber in Rust do). Don't reach for a fixed-point crate for one sqrt.
 - **Slippage protection: accept a `min_output_*` from the user and verify before the CPI.** Swaps, deposits, and withdraws all need it. Without it, sandwich attackers steal value across the price gap they create.
@@ -54,8 +61,10 @@ Applies to any code touching money, balances, prices, shares, fees, or token amo
 
 ### Escrows, Vaults, and Escape Hatches
 
+- **Every vault stores who may withdraw, and every withdraw verifies it.** A vault whose PDA signs for any caller is an open drain: if the only signer in the withdraw instruction is the fee payer and the recipient is client-supplied, anyone can withdraw anything. Record the depositor/authority when assets enter, `require!` it (against a `Signer`) when they leave. "The README admits there is no authority" does not make the program acceptable as a reference.
 - **Every escrow needs a cancel/withdraw instruction.** An escrow with no cancel locks abandoned offers forever — funds become unrecoverable when the counterparty disappears. The cancel must be callable by the maker (and only the maker) at any time before the trade settles.
 - **Don't lazily create an account the wrong party would pay rent for.** Common bug: the taker's instruction lazily creates the maker's destination ATA (e.g. via Anchor's `init_if_needed`), so the taker pays the maker's rent. Either require the maker to pre-create their ATA or pass the rent payer explicitly.
+- **Close accounts to whoever paid their rent.** The mirror image of the bullet above: when the taker settles an offer, the offer account and vault rent were paid by the maker, so `close = maker` — not `close = taker`, and never a caller-chosen unchecked account. When closing manually, move *all* lamports; leaving `minimum_balance` behind strands it forever at a PDA nobody can sign for.
 - **Update state before the CPI.** Already in the list above, but worth repeating in the vault context: write the new balance/share count first, then transfer. A CPI that re-enters (rare on Solana but possible via callbacks) sees current state, not stale state.
 
 **Pattern to copy when ratio-clamping (Uniswap V2 style):**
@@ -83,6 +92,27 @@ let (final_a, final_b) = if amount_b_required <= amount_b_u128 {
 let final_a: u64 = final_a.try_into().map_err(|_| ErrorCode::MathOverflow)?;
 let final_b: u64 = final_b.try_into().map_err(|_| ErrorCode::MathOverflow)?;
 ```
+
+### Pre-signed Message Authorization
+
+If a handler accepts an offchain signature (ed25519, secp256k1 "sign in with Ethereum", session keys) as authorization, the signed message must commit to everything the signature authorizes:
+
+- The message the program verifies must be reconstructed *onchain* from the program ID, the specific action, the amount, the recipient, and a nonce stored in program state — never accepted as an opaque client-supplied hash.
+- Increment the stored nonce after each successful use, so a signature authorizes exactly one execution.
+- A signature over an arbitrary 32-byte value the client provides authorizes nothing in particular and everything in practice: any old signature can be replayed forever, for any amount, to any destination.
+- The signature check supplements the Solana-side authority check, it does not replace it. Keep the `Signer` + stored-authority comparison too.
+
+## Account Binding
+
+Framework type checks (Anchor `Account<T>`, Quasar `Account<T>`) only verify owner and discriminator. They do NOT link accounts to each other. Every account in a constraint struct must be bound to something:
+
+- State accounts: `seeds` / `address` derivation, or `has_one` from another bound account.
+- Vaults and ATAs: `has_one` from the state account that recorded them, or `associated_token::*` constraints.
+- Per-user records: seeds that include the signer's key, so user A cannot pass user B's record with their own token account.
+- Mints a state account stores (`usdc_mint`, `asset_mint_a`, ...): `has_one` in EVERY instruction that reads balances denominated in them. An unbound mint lets a caller substitute a junk mint whose vault is empty and skew any NAV/share calculation.
+- Stored program addresses (swap router, oracle program): either enforce them where the CPI happens or delete the field. A stored-but-never-checked address is worse than none: readers assume it is enforced.
+
+An account with no constraint and no handler-side check is a finding, not a style issue. When a program ships in multiple frameworks, port the FULL constraint set: a twin variant missing one `has_one` or one authority comparison is a security bug, not a porting shortcut.
 
 ## Config Validation
 

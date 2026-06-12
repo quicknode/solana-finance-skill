@@ -12,7 +12,7 @@ Apply these rules to ensure code quality, maintainability, and adherence to proj
 Don't write things that aren't currently true — anywhere. Chat, code comments, variable names, PR titles, READMEs, commit messages.
 
 - Documentation and comments that do not match the code are considered untrue.
-- Variable names that do not match the purpose of the variable are considered untrue.
+- Variable names that do not match the purpose of the variable are considered untrue. For example, a struct called `InitializeMarket` is not true because a struct cannot 'initialize a market' - structs do not do things, only functions can do things.
 - Temporary workarounds that aren't labelled as such are lying through omission - there is an issue you aren't telling the next programmer about. Mark them with a `TODO` comment with a link to a git issue (if it exists) and telling the next programmer when they can delete the workaround.
 - If unsure of something, say so. Bluffing is lying.
 - **Ambiguity is a soft lie:** if a phrase could be read two ways and only one is true, it's misleading. Disambiguate before sending — pick the term that says exactly what's meant, name the antecedent of every "it"/"this"/"that".
@@ -38,6 +38,8 @@ Ship the complete thing. When the user asks for something, the answer is the fin
 ## Success Criteria
 
 - Before declaring success, declaring that work is complete, or celebrating, run the project's actual tests using the correct command for that project (for example: `anchor test` for Anchor workspaces, the project's TypeScript test command for TypeScript clients/tests, or `cargo test` for Rust crates). If the tests fail, there is more work to do. Don't stop until the relevant test command passes on the code you have made.
+- Create all program state through the program's own instruction handlers in tests. Injecting pre-fabricated accounts (hand-built account data passed straight into the SVM) hides missing init instructions and missing constraints - a program can pass every test while being unusable onchain. Pre-fabricated accounts are only acceptable for accounts a foreign program would have created (an oracle's price account, a mainnet-dumped fixture).
+- Tests that use a zero or degenerate value for a parameter (e.g. `duration: 0`) test only the boundary where opposite comparisons coincide. Use nonzero, asymmetric values and test both sides of every boundary.
 - Do not write placeholder tests. Placeholder tests don't count as tests, placeholder tests passing does not achieve your task.
   - Tests that just do `assert.ok(true)` or similar are placeholder tests and do not count as tests
   - Tests that do not call the program's instruction handlers are placeholder tests and do not count as tests
@@ -63,6 +65,7 @@ Use these official documentation sources:
 - **Agave (Solana CLI)**: https://docs.anza.xyz/ (Anza makes the Solana CLI and Agave).
 - **Switchboard** (if used): https://docs.switchboard.xyz/docs-by-chain/solana-svm
 - **Arcium** (if used): https://docs.arcium.com/developers
+- **Quicknode Solana Program Examples**: https://github.com/quicknode/solana-program-examples
 
 ## Terminology
 
@@ -86,13 +89,15 @@ Use these official documentation sources:
     - [US Government usage](https://www.sec.gov/files/rules/interp/2026/33-11412.pdf)
     - [Cat (catmcgee) will make fun of you if you write 'on-chain'](https://x.com/catmcgee/status/2028153588715761825)
 
+- Token amount units: a **major unit** is the human-scale denomination — dollar, pound, yen, SOL. A **minor unit** is the smallest denomination, the raw integer programs operate on — cent, penny, sen, lamport. Use these terms; do not say 'base units'.
+
 - Some tools in Solana unfortunately use the same word 'instructions' for both the input and the functions. To avoid confusion, use 'instruction handlers' for the functions that handle instructions, and 'instructions' for the input to those functions.
 
 ## Do not use
 
 - Do not use 'Solana Labs' documentation. The company has been replaced by Anza.
 
-- Do not use 'Coral XYZ' documentation. Coral used to maintain Anchor, but Anchor is now maintained by the Solana Foundation (solana.org)
+- Do not use 'Coral XYZ' documentation or packages. Coral used to maintain Anchor, but Anchor is now maintained by the Solana Foundation (solana.org). The TypeScript package has been [moved from @coral-xyz/anchor to @anchor-lang/core](https://www.anchor-lang.com/docs/updates/release-notes/1-0-0).
 
 - Do not use any documentaton or tools from Project Serum, which collapsed many years ago.
 
@@ -101,6 +106,8 @@ Use these official documentation sources:
 - Do not use **Switchboard Functions** - this product is dead and no longer maintained. (Note: Switchboard oracles are still active and usable.)
 
 - Do not use **Clockwork** - this product is dead. For scheduled instruction handler invocation, use [TukTuk](https://github.com/helium/tuktuk/tree/main/typescript-examples) instead.
+
+- Do not use [https://github.com/solana-developers/program-examples]. As of June 2026 these examples are out of date, going back to Anchor 0.26 in 2022, use a bunch of deprecated tools, have security failures and broken tests, and have been this way for more than a year.
 
 ## Library versions
 
@@ -154,6 +161,8 @@ Remove:
 - Comments that simply repeat what the code is doing, or the name of a variable, and do not add further insight.
 - Repeated code that should be turned into a named function.
 - Unused imports, unused constants, unused files, and comments that no longer apply.
+
+Before deleting "stale" scaffolding, confirm it is actually dead: grep the CI workflows (`.github/workflows/`) and package scripts for references. Test files and package.json scripts that look like leftovers are sometimes exactly what CI runs.
 - Doc-comments whose first line just paraphrases the identifier. `/// Pool authority PDA.` above `pub pool_authority` is noise. Either explain something the name doesn't (seed derivation, mutability rationale, type-choice reason, an invariant the reader can't see from the type) or delete the line.
 
 Don't remove existing comments unless they are no longer useful or accurate.
@@ -216,7 +225,7 @@ const foo = getFoo();
 
 - Arrays should be plurals (`shoes`), items within arrays should be the singular (`shoes.forEach((shoe) => {...})`)
 - Functions should be verby, like `calculateFoo` or `getBar`
-- Avoid abbreviations, use full words (e.g., use `context` rather than `ctx`). Never use `e` for something thrown, use `thrownObject`, never use `v` when you mean `value`. There is almost no case where a single character variable is a good idea outside maths (eg `p` and `q` for cryptography).
+- Avoid abbreviations, use full words (e.g., use `context` rather than `ctx`). Never use `e` for something thrown, use `thrownObject`, never use `v` when you mean `value`. There is almost no case where a single character variable is a good idea outside math (eg `p` and `q` for cryptography).
 - Name a transaction some variant of `transaction`. Name instructions some variant of `instruction`. Name signatures some variant of `signature`. Do not confuse them - eg if the type looks like an instruction, you should not call it a 'transaction' because that is deceptive.
 
 You can still add comments for additional context, just be careful to avoid comments that are explaining things that would be better conveyed by good variable naming.
@@ -255,9 +264,13 @@ The rules above apply to every file in the project. In addition, read the file t
 
 If a task touches more than one, read each.
 
+For setting up a Solana toolchain in CI or a fresh remote container (Agave, platform-tools behind TLS-intercepting proxies, the Quasar CLI, building Anchor projects without the anchor CLI): see [ENVIRONMENT.md](ENVIRONMENT.md).
+
 ## Git commits
 
 Do not add "Co-Authored-By: Claude" or similar attribution when creating git commits.
+
+Use the Linux/Git style `scope: description` for commit titles. [Do not use 'Conventional commits'](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/).
 
 ## Acknowledgment
 

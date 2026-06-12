@@ -166,7 +166,9 @@ fn test_initialize() {
 }
 ```
 
-Before the program binary exists, run `anchor build` so `target/deploy/<name>.so` is on disk; the test loads it via `include_bytes!`.
+Before the program binary exists, run `anchor build` so `target/deploy/<name>.so` is on disk; the test loads it via `include_bytes!`. Rebuild after every program change: the binary is embedded at test-compile time, so a stale `.so` silently tests old code.
+
+**Tests must live under `programs/<name>/tests/`** (a cargo target of the program crate). A `tests/` directory at the Anchor project root is not part of any cargo package - `cargo test` will report success while compiling and running nothing. If a suite "passes" suspiciously fast, check the test count in the output, not just the exit code.
 
 ### Two scaffold fixes to apply immediately after `anchor init`
 
@@ -187,14 +189,15 @@ The `anchor init` scaffold above is already the minimal pattern — `litesvm` pl
 
 ### Optional ergonomic helpers via solana-kite
 
-[`solana-kite`](https://crates.io/crates/solana-kite) is an optional thin layer on top of `litesvm` that removes most of the manual transaction wiring. Used in the wild by [`quiknode-labs/solana-program-examples/basics/counter/anchor`](https://github.com/quiknode-labs/solana-program-examples/tree/main/basics/counter/anchor).
+[`solana-kite`](https://crates.io/crates/solana-kite) is an optional thin layer on top of `litesvm` that removes most of the manual transaction wiring. Used in the wild by [`quicknode/solana-program-examples/basics/counter/anchor`](https://github.com/quicknode/solana-program-examples/tree/main/basics/counter/anchor).
 
 Add to `[dev-dependencies]`:
 
 ```toml
 [dev-dependencies]
-litesvm = "0.10.0"
+litesvm = "0.11.0"
 solana-kite = "0.3.0"
+solana-signer = "3.0.0"
 borsh = "1.6.1"
 ```
 
@@ -205,6 +208,7 @@ use {
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
     litesvm::LiteSVM,
     solana_kite::{create_wallet, send_transaction_from_instructions},
+    solana_signer::Signer,
 };
 
 #[test]
@@ -222,11 +226,12 @@ fn test_initialize() {
         anchor_scaffold_probe::accounts::Initialize {}.to_account_metas(None),
     );
 
-    send_transaction_from_instructions(&mut svm, &[instruction], &payer, &[&payer]).unwrap();
+    send_transaction_from_instructions(&mut svm, vec![instruction], &[&payer], &payer.pubkey())
+        .unwrap();
 }
 ```
 
-`create_wallet` replaces the `Keypair::new()` + `svm.airdrop(...)` pair, and `send_transaction_from_instructions` replaces the `Message` / `VersionedMessage` / `VersionedTransaction` construction. Bare `litesvm` is still the baseline — reach for kite when you have repeated boilerplate worth removing.
+`create_wallet` replaces the `Keypair::new()` + `svm.airdrop(...)` pair, and `send_transaction_from_instructions` replaces the `Message` / `VersionedMessage` / `VersionedTransaction` construction. Its argument order is: the SVM, a `Vec` of instructions, the signers slice, then the fee payer's *pubkey* (not the keypair). Bare `litesvm` is still the baseline — reach for kite when you have repeated boilerplate worth removing.
 
 ### Account deserialisation
 
@@ -245,16 +250,16 @@ let counter = CounterAccount::try_from_slice(&account.data[8..]).unwrap();
 assert_eq!(counter.count, 1);
 ```
 
-`8` here is the Anchor account discriminator length, not a magic number — it is fixed by Anchor's account layout.
+`8` here is the Anchor account discriminator length, not a magic number — it is fixed by Anchor's account layout. An equivalent alternative is to include the discriminator in the mirror struct (`_discriminator: [u8; 8]` as the first field) and decode the full `account.data` without slicing.
 
 ### Re-expiring blockhash between repeated identical transactions
 
 LiteSVM, like a real validator, will reject a second transaction with the same blockhash + signer + message because the signature is identical to one it has already processed. If a test sends the *same* instruction twice (for example, calling `increment` in a loop), call `svm.expire_blockhash()` between sends so the next transaction picks up a fresh blockhash and is treated as new:
 
 ```rust
-send_transaction_from_instructions(&mut svm, &[increment.clone()], &payer, &[&payer]).unwrap();
+send_transaction_from_instructions(&mut svm, vec![increment.clone()], &[&payer], &payer.pubkey()).unwrap();
 svm.expire_blockhash();
-send_transaction_from_instructions(&mut svm, &[increment], &payer, &[&payer]).unwrap();
+send_transaction_from_instructions(&mut svm, vec![increment], &[&payer], &payer.pubkey()).unwrap();
 ```
 
 This is only needed when the message bytes would otherwise be byte-identical. Different instructions, different accounts, or different signers do not need it.
