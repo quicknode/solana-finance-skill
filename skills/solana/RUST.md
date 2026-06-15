@@ -59,6 +59,43 @@ Applies to any code touching money, balances, prices, shares, fees, or token amo
 - **Oracle freshness uses slots, not unix time.** Slot count is what the runtime guarantees; `Clock::get()?.unix_timestamp` is validator-influenced. Check `last_updated_slot` against `Clock::get()?.slot` and reject if older than N slots. If you must use a unix timestamp (because the oracle only exposes one), state why in a comment.
 - **Canonical pubkey ordering for two-asset pools.** Order mints so `mint_a.key() < mint_b.key()` (lexicographic on the 32-byte key). Same pool whether the user passes `(USDC, SOL)` or `(SOL, USDC)`. Enforce in the constraint, don't rely on the client.
 
+### Compound interest
+
+For interest, fees that roll up, or any "grows by a rate each period" quantity. The same integer-fixed-point discipline above applies; these rules are specific to the compounding.
+
+- **Compute `(1 + r)^n` by exponentiation-by-squaring on a scaled integer — never `powf`, `exp`, or anything touching `e`.** `e` and `powf` are floats: non-deterministic and banned by the integers-only rule above. Hold `1.0` as a WAD-scaled integer (`ONE_WAD = 1_000_000_000_000_000_000` = 1e18, in `u128`), form the per-period factor `(1 + rate_per_period)` in the same scale, and raise it to the integer power of periods elapsed with square-and-multiply. This is exactly what the SPL token-lending lineage ships (Save/Solend, Port: `(1 + rate/SLOTS_PER_YEAR).pow(slots_elapsed)`), and it is *exact* discrete compounding up to one truncation per multiply — error `O(log n)` ULPs, far below token granularity.
+
+```rust
+// 1.0 in WAD fixed point. factor and result are u128 in this scale.
+const ONE_WAD: u128 = 1_000_000_000_000_000_000;
+
+// Multiply two WAD-scaled values, rescaling back down. Floors (truncates).
+// Use a wider intermediate (U192/U256) if either operand can exceed ~1e19.
+fn wad_mul(a: u128, b: u128) -> Option<u128> {
+    a.checked_mul(b)?.checked_div(ONE_WAD) // multiply before divide
+}
+
+// (1 + rate_per_period)^periods, exact discrete compounding, O(log n) muls.
+fn compound_factor(mut factor: u128, mut periods: u64) -> Option<u128> {
+    let mut result = ONE_WAD; // 1.0
+    while periods > 0 {
+        if periods & 1 == 1 {
+            result = wad_mul(result, factor)?;
+        }
+        factor = wad_mul(factor, factor)?;
+        periods >>= 1;
+    }
+    Some(result)
+}
+```
+
+- **Compound per slot, not per unix second.** Periods are slots elapsed (`Clock::get()?.slot - last_update_slot`), and the per-period rate is `annual_rate / SLOTS_PER_YEAR` — same reasoning as *Oracle freshness uses slots, not unix time*. Early-return when zero slots have elapsed.
+- **Accrue lazily into a stored cumulative index, not per position.** Keep one `cumulative_borrow_rate` (and `last_update_slot`) on the market; multiply it by the compound factor on any touch; each position's owed amount is a ratio of indices. This is the universal Solana pattern (Save, Port, Kamino) — it makes accrual permissionless and O(1) per user.
+- **Round the *result* against the user, and decide direction explicitly.** Interest owed **by** a user (borrow, fee) rounds **up** (`ceiling`); interest credited **to** a user (supply yield) rounds **down** (`floor`) — per *Round in the protocol's favour*. The factor's per-multiply truncation is negligible; the load-bearing rounding is converting the index to a token amount, so apply `floor`/`ceil` there. Rounding the wrong way here is the exact bug class behind the SPL token-lending disclosure (round-trip extraction; the fix replaced `round` with `floor`) — a rounding-in-the-user's-favour error is a drain, not a cosmetic.
+- **`spl-math`'s `PreciseNumber` is a correct *reference* for the algorithm, but don't depend on it.** Its `checked_pow` is a clean square-and-multiply and the crate has no `unsafe`. However: `solana-program-library` was archived (read-only) in 2025 and the crate is unmaintained; `PreciseNumber` rounds **half-up** (it adds `ONE/2` before dividing), which can round *in the user's favour* — wrong for money; and it is CU-heavy (U256 internals). If you want its math, vendor the ~15-line square-and-multiply (it's Apache-2.0) into your own WAD helpers and control the rounding yourself, rather than taking a dependency on an abandoned crate whose default rounding you have to fight.
+- **A truncated binomial/Taylor series is an acceptable *compute* optimisation, not a default.** For large slot gaps, exact `pow` is `O(log n)` full-width multiplies; Aave and Kamino instead expand `(1 + b)^n ≈ 1 + nb + n(n-1)/2·b² + n(n-1)(n-2)/6·b³`, which is `O(1)` and accurate because the per-slot rate `b` is microscopic (so `b⁴+` vanishes). If you do this, keep the same scaled-integer/checked discipline and ensure the truncation error rounds *against* the user (Aave's comment notes it deliberately undercharges borrowers / underpays suppliers).
+- **If you accrue simple interest per touch and call it "compound", say so.** Multiplying principal by `(1 + r·Δt)` once per interaction (marginfi, Compound v2) only compounds *across* settlement events; over a long un-touched gap it under-accrues versus true `(1+r)^n`. That's a legitimate design, but document it as simple-per-accrual — don't claim exact compounding the code doesn't do (*Fight for Truth*).
+
 ### Escrows, Vaults, and Escape Hatches
 
 - **Every vault stores who may withdraw, and every withdraw verifies it.** A vault whose PDA signs for any caller is an open drain: if the only signer in the withdraw instruction is the fee payer and the recipient is client-supplied, anyone can withdraw anything. Record the depositor/authority when assets enter, `require!` it (against a `Signer`) when they leave. "The README admits there is no authority" does not make the program acceptable as a reference.
