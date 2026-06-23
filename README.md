@@ -1,5 +1,7 @@
 # Solana Finance Plugin & Skill
 
+![Quicknode Solana Finance Claude Skill](assets/banner.png)
+
 A Claude Code plugin for creating and editing Solana projects, specifically Rust projects in Anchor and Quasar, with a focus on:
 
 - Accuracy, consistency and security for financial software
@@ -9,7 +11,7 @@ A Claude Code plugin for creating and editing Solana projects, specifically Rust
 This skill has the **most stars of any ecosystem Solana Claude skill** and is based on production-code used by some of the largest programs on Solana. If you're new to Solana: Solana programs are called 'smart contracts' older blockchains, that's what this skill builds.
 
 > [!TIP]
-> If you find this plugin useful, please add a GitHub star above! 🙏 
+> If you find this plugin useful, please add a GitHub star above! 🙏
 
 ## What is this?
 
