@@ -8,14 +8,14 @@ A Claude Code plugin for creating and editing Solana projects, specifically Rust
 - Maintainability, readability, and minimal code
 - Current best practices including Rust/LiteSVM for testing
 
-This skill has the **most stars of any ecosystem Solana Claude skill** and is based on production-code used by some of the largest programs on Solana. If you're new to Solana: Solana programs are called 'smart contracts' older blockchains, that's what this skill builds.
+This plugin has the **most stars of any ecosystem Solana Claude plugin** and is based on production-code used by some of the largest programs on Solana. If you're new to Solana: Solana programs are called 'smart contracts' on older blockchains, that's what this plugin builds.
 
 > [!TIP]
 > If you find this plugin useful, please add a GitHub star above! 🙏
 
 ## What is this?
 
-**Solana Finance** is a Claude Code skill that bundles the `solana` skill — a reusable instruction set Claude automatically applies when working on Solana code, or that you can invoke manually. Skills are triggered automatically based on context (e.g. opening an Anchor program or a Solana Kit client).
+**Solana Finance** is a Claude Code plugin that bundles the `solana` skill — a reusable instruction set Claude automatically applies when working on Solana code, or that you can invoke manually. Skills are triggered automatically based on context (e.g. opening an Anchor program or a Solana Kit client).
 
 ## Installation
 
