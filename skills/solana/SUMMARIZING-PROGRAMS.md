@@ -23,6 +23,10 @@ Rules for explaining a Solana program clearly and truthfully — in a README, a 
 - **No memecoins**, and **avoid SOL** wherever possible — its price is meaningless to most people, whereas a dollar or a familiar stock is not.
 - **Numbers are real and current, or clearly hypothetical.** Cite a price you state (real token, today's value, with a source); label any invented or future figure as illustrative. Keep token math concrete with base units and a worked example ("100 SPCXx at \$170 = \$17,000 collateral; 75% LTV ⇒ borrow up to \$12,750").
 
+## Ensure math is correct
+
+Use your preferred tool (Rust or Python) to ensure the math used during the scenarios described in the summary is correct.
+
 ## Get the mechanism and incentives right
 
 - **Explain incentives correctly, and correct plausible-but-wrong mental models.** Example: liquidation is not a "crank fee" — the liquidator is a principal who repays debt from their own pocket and takes the borrower's collateral at a discount; the program can't sell collateral itself, so it pays outsiders to show up.
